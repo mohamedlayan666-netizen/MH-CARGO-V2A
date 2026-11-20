@@ -1,0 +1,6 @@
+{
+  "name": "MH CARGO",
+  "description": "منصة ذكية لنقل الحاويات تربط أصحاب الشحنات بالناقلين في ميناء الإسكندرية وميناء الدخيلة",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,253 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user profile with role and account status",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "email": { "type": "string", "minLength": 3, "maxLength": 150 },
+        "phone": { "type": "string", "minLength": 5, "maxLength": 30 },
+        "companyName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "role": { "type": "string", "enum": ["shipper", "carrier"] },
+        "accountStatus": { "type": "string", "enum": ["active", "pending_review", "suspended"] },
+        "commercialRegister": { "type": "string", "maxLength": 60 },
+        "city": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "email", "phone", "companyName", "role", "accountStatus", "createdAt", "updatedAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Trusted platform administrator record",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "minLength": 3, "maxLength": 150 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "CarrierProfile": {
+      "title": "CarrierProfile",
+      "description": "Public business profile for a container carrier company",
+      "type": "object",
+      "properties": {
+        "carrierId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "ownerName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "city": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "servicePorts": { "type": "array", "description": "Subset of alexandria and dekheila" },
+        "yearsExperience": { "type": "number" },
+        "description": { "type": "string", "maxLength": 800 },
+        "verificationStatus": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "truckCount": { "type": "number" },
+        "completedTrips": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["carrierId", "companyName", "ownerName", "city", "servicePorts", "yearsExperience", "description", "verificationStatus", "truckCount", "completedTrips", "createdAt", "updatedAt"]
+    },
+    "Truck": {
+      "title": "Truck",
+      "description": "Container tractor and trailer unit belonging to a carrier",
+      "type": "object",
+      "properties": {
+        "truckId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "carrierId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "carrierCompany": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "plateNumber": { "type": "string", "minLength": 2, "maxLength": 30 },
+        "tractorModel": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "trailerType": { "type": "string", "enum": ["flatbed_20", "flatbed_40", "skeleton_40", "reefer_chassis", "lowbed"] },
+        "maxPayloadTons": { "type": "number" },
+        "supportedContainerSizes": { "type": "array" },
+        "driverName": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "driverPhone": { "type": "string", "minLength": 5, "maxLength": 30 },
+        "status": { "type": "string", "enum": ["available", "on_trip", "maintenance"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["truckId", "carrierId", "carrierCompany", "plateNumber", "tractorModel", "trailerType", "maxPayloadTons", "supportedContainerSizes", "driverName", "driverPhone", "status", "createdAt", "updatedAt"]
+    },
+    "Shipment": {
+      "title": "Shipment",
+      "description": "Container transport request between Alexandria or Dekheila ports and warehouses",
+      "type": "object",
+      "properties": {
+        "shipmentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "referenceCode": { "type": "string", "minLength": 3, "maxLength": 30 },
+        "shipperId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "shipperCompany": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "port": { "type": "string", "enum": ["alexandria", "dekheila"] },
+        "direction": { "type": "string", "enum": ["from_port", "to_port"] },
+        "terminalGate": { "type": "string", "maxLength": 100 },
+        "deliveryLocation": { "type": "string", "minLength": 2, "maxLength": 200 },
+        "deliveryGovernorate": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "containerSize": { "type": "string", "enum": ["20ft", "40ft", "40ft_hc"] },
+        "containerType": { "type": "string", "enum": ["dry", "reefer", "open_top", "flat_rack", "tank"] },
+        "containerCount": { "type": "number" },
+        "cargoWeightTons": { "type": "number" },
+        "cargoDescription": { "type": "string", "minLength": 2, "maxLength": 500 },
+        "instructions": { "type": "string", "maxLength": 1000 },
+        "pickupDate": { "type": "string", "minLength": 4, "maxLength": 30 },
+        "targetBudgetEgp": { "type": "number" },
+        "status": { "type": "string", "enum": ["open", "assigned", "in_transit", "at_gate", "delivered", "completed", "cancelled"] },
+        "acceptedOfferId": { "type": "string", "maxLength": 128 },
+        "acceptedCarrierId": { "type": "string", "maxLength": 128 },
+        "acceptedCarrierCompany": { "type": "string", "maxLength": 120 },
+        "agreedPriceEgp": { "type": "number" },
+        "shipperCommissionRate": { "type": "number" },
+        "carrierCommissionRate": { "type": "number" },
+        "shipperCommissionEgp": { "type": "number" },
+        "carrierCommissionEgp": { "type": "number" },
+        "totalShipperPayableEgp": { "type": "number" },
+        "netCarrierPayoutEgp": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["shipmentId", "referenceCode", "shipperId", "shipperCompany", "port", "direction", "terminalGate", "deliveryLocation", "deliveryGovernorate", "containerSize", "containerType", "containerCount", "cargoWeightTons", "cargoDescription", "instructions", "pickupDate", "targetBudgetEgp", "status", "acceptedOfferId", "acceptedCarrierId", "acceptedCarrierCompany", "agreedPriceEgp", "shipperCommissionRate", "carrierCommissionRate", "shipperCommissionEgp", "carrierCommissionEgp", "totalShipperPayableEgp", "netCarrierPayoutEgp", "createdAt", "updatedAt"]
+    },
+    "Offer": {
+      "title": "Offer",
+      "description": "Carrier price bid for an open container shipment",
+      "type": "object",
+      "properties": {
+        "offerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "shipmentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "shipmentReference": { "type": "string", "minLength": 3, "maxLength": 40 },
+        "shipperId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "carrierId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "carrierCompany": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "truckId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "truckLabel": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "priceEgp": { "type": "number" },
+        "estimatedHours": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 600 },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "withdrawn"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["offerId", "shipmentId", "shipmentReference", "shipperId", "carrierId", "carrierCompany", "truckId", "truckLabel", "priceEgp", "estimatedHours", "notes", "status", "createdAt", "updatedAt"]
+    },
+    "CommissionLedger": {
+      "title": "CommissionLedger",
+      "description": "Recorded dual-sided platform commission transaction",
+      "type": "object",
+      "properties": {
+        "commissionId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "shipmentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "shipmentReference": { "type": "string", "minLength": 3, "maxLength": 40 },
+        "offerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "shipperId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "shipperCompany": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "carrierId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "carrierCompany": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "agreedPriceEgp": { "type": "number" },
+        "shipperRatePercent": { "type": "number" },
+        "carrierRatePercent": { "type": "number" },
+        "shipperFeeEgp": { "type": "number" },
+        "carrierFeeEgp": { "type": "number" },
+        "totalPlatformFeeEgp": { "type": "number" },
+        "settlementStatus": { "type": "string", "enum": ["recorded_pending_gateway", "settled", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["commissionId", "shipmentId", "shipmentReference", "offerId", "shipperId", "shipperCompany", "carrierId", "carrierCompany", "agreedPriceEgp", "shipperRatePercent", "carrierRatePercent", "shipperFeeEgp", "carrierFeeEgp", "totalPlatformFeeEgp", "settlementStatus", "createdAt", "updatedAt"]
+    },
+    "PlatformSetting": {
+      "title": "PlatformSetting",
+      "description": "Configurable platform commission rates",
+      "type": "object",
+      "properties": {
+        "settingId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "shipperCommissionPercent": { "type": "number" },
+        "carrierCommissionPercent": { "type": "number" },
+        "minOrderValueEgp": { "type": "number" },
+        "paymentCollectionMode": { "type": "string", "enum": ["manual_recording_no_gateway"] },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["settingId", "shipperCommissionPercent", "carrierCommissionPercent", "minOrderValueEgp", "paymentCollectionMode", "updatedBy", "updatedAt"]
+    },
+    "Complaint": {
+      "title": "Complaint",
+      "description": "User complaint or dispute submitted for admin review",
+      "type": "object",
+      "properties": {
+        "complaintId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "reporterId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "reporterName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "reporterRole": { "type": "string", "enum": ["shipper", "carrier"] },
+        "shipmentId": { "type": "string", "maxLength": 128 },
+        "subject": { "type": "string", "minLength": 3, "maxLength": 150 },
+        "details": { "type": "string", "minLength": 5, "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["open", "under_review", "resolved", "dismissed"] },
+        "adminNote": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["complaintId", "reporterId", "reporterName", "reporterRole", "shipmentId", "subject", "details", "status", "adminNote", "createdAt", "updatedAt"]
+    },
+    "ContactMessage": {
+      "title": "ContactMessage",
+      "description": "Support or inquiry message from the Contact Us page",
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "senderName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "email": { "type": "string", "minLength": 3, "maxLength": 150 },
+        "phone": { "type": "string", "minLength": 5, "maxLength": 30 },
+        "subject": { "type": "string", "minLength": 2, "maxLength": 150 },
+        "message": { "type": "string", "minLength": 5, "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["new", "reviewed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["messageId", "senderId", "senderName", "email", "phone", "subject", "message", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user account profiles with strict owner/admin read isolation"
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Administrator registry"
+    },
+    "/carrierProfiles/{carrierId}": {
+      "schema": { "$ref": "#/entities/CarrierProfile" },
+      "description": "Carrier company verification and service port profiles"
+    },
+    "/trucks/{truckId}": {
+      "schema": { "$ref": "#/entities/Truck" },
+      "description": "Carrier trucks and container chassis fleet"
+    },
+    "/shipments/{shipmentId}": {
+      "schema": { "$ref": "#/entities/Shipment" },
+      "description": "Container transport orders for Alexandria and Dekheila ports"
+    },
+    "/offers/{offerId}": {
+      "schema": { "$ref": "#/entities/Offer" },
+      "description": "Carrier price offers on open shipments"
+    },
+    "/commissions/{commissionId}": {
+      "schema": { "$ref": "#/entities/CommissionLedger" },
+      "description": "Recorded dual-sided commissions per accepted shipment"
+    },
+    "/platformSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/PlatformSetting" },
+      "description": "Global commission configuration managed by admins"
+    },
+    "/complaints/{complaintId}": {
+      "schema": { "$ref": "#/entities/Complaint" },
+      "description": "Complaints and dispute tickets"
+    },
+    "/contactMessages/{messageId}": {
+      "schema": { "$ref": "#/entities/ContactMessage" },
+      "description": "Contact form messages"
+    }
+  }
+}

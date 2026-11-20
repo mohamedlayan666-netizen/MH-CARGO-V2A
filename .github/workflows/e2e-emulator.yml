@@ -1,0 +1,83 @@
+name: MH CARGO Isolated Emulator E2E
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  emulator-e2e:
+    name: Run Isolated Firebase Emulator E2E Workflow
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java 21 (required for Firebase Firestore Emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install project dependencies
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Provide CI-only placeholder firebase-applet-config.json for lint and build
+        run: |
+          node -e "
+          const fs = require('fs');
+          if (!fs.existsSync('firebase-applet-config.json')) {
+            fs.writeFileSync('firebase-applet-config.json', JSON.stringify({
+              projectId: 'demo-mh-cargo-test',
+              appId: '1:000000000000:web:demo',
+              apiKey: 'demo-api-key-ci-only',
+              authDomain: 'demo-mh-cargo-test.firebaseapp.com',
+              firestoreDatabaseId: '(default)',
+              storageBucket: 'demo-mh-cargo-test.firebasestorage.app',
+              messagingSenderId: '000000000000',
+              measurementId: '',
+              oAuthClientId: 'demo-oauth-client-id',
+              recaptchaSiteKey: ''
+            }, null, 2));
+            fs.writeFileSync('.ci-placeholder-firebase-config', '1');
+          }
+          "
+
+      - name: Verify TypeScript compilation
+        run: npm run lint
+
+      - name: Verify production Vite build
+        run: npm run build
+
+      - name: Remove CI-only placeholder firebase-applet-config.json before emulator run
+        if: always()
+        run: |
+          node -e "
+          const fs = require('fs');
+          if (fs.existsSync('.ci-placeholder-firebase-config')) {
+            if (fs.existsSync('firebase-applet-config.json')) fs.unlinkSync('firebase-applet-config.json');
+            fs.unlinkSync('.ci-placeholder-firebase-config');
+          }
+          "
+
+      - name: Lint Firestore security rules
+        run: npx eslint firestore.rules
+
+      - name: Run isolated E2E workflow in Firebase Emulator (no production connection)
+        run: npm run test:emulator

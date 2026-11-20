@@ -1,0 +1,21 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Firebase secrets, keys, local config & emulator caches
+firebase-applet-config.json
+.firebase/
+.firebaserc
+firebase-debug.log*
+firestore-debug.log*
+auth-debug.log*
+ui-debug.log*
+*serviceAccount*.json
+*service-account*.json
+*.pem
+*.key

@@ -1,0 +1,527 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Connection validation document (read-only single doc)
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // =========================================================
+    // Global Primitives & Helpers
+    // =========================================================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedEmail() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isVerifiedEmail() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'mohamedlayan666@gmail.com'
+      );
+    }
+
+    function isActiveUserAccount() {
+      return isAdmin() || (
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountStatus != 'suspended'
+      );
+    }
+
+    // =========================================================
+    // Entity Validation Blueprints
+    // =========================================================
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'phone', 'companyName', 'role', 'accountStatus', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'phone', 'companyName', 'role', 'accountStatus', 'commercialRegister', 'city', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 100
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
+        && data.phone is string && data.phone.size() >= 5 && data.phone.size() <= 30
+        && data.companyName is string && data.companyName.size() >= 2 && data.companyName.size() <= 120
+        && data.role in ['shipper', 'carrier']
+        && data.accountStatus in ['active', 'pending_review', 'suspended']
+        && (!data.keys().hasAny(['commercialRegister']) || (data.commercialRegister is string && data.commercialRegister.size() <= 60))
+        && (!data.keys().hasAny(['city']) || (data.city is string && data.city.size() <= 80))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRecord(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'email', 'createdAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
+        && data.createdAt is timestamp;
+    }
+
+    function isValidCarrierProfile(data) {
+      return data.keys().hasAll(['carrierId', 'companyName', 'ownerName', 'city', 'servicePorts', 'yearsExperience', 'description', 'verificationStatus', 'truckCount', 'completedTrips', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['carrierId', 'companyName', 'ownerName', 'city', 'servicePorts', 'yearsExperience', 'description', 'verificationStatus', 'truckCount', 'completedTrips', 'createdAt', 'updatedAt'])
+        && isValidId(data.carrierId)
+        && data.companyName is string && data.companyName.size() >= 2 && data.companyName.size() <= 120
+        && data.ownerName is string && data.ownerName.size() >= 2 && data.ownerName.size() <= 100
+        && data.city is string && data.city.size() >= 2 && data.city.size() <= 80
+        && data.servicePorts is list && data.servicePorts.size() >= 1 && data.servicePorts.size() <= 2 && data.servicePorts.hasOnly(['alexandria', 'dekheila'])
+        && data.yearsExperience is number && data.yearsExperience >= 0 && data.yearsExperience <= 100
+        && data.description is string && data.description.size() <= 800
+        && data.verificationStatus in ['pending', 'approved', 'rejected']
+        && data.truckCount is number && data.truckCount >= 0 && data.truckCount <= 500
+        && data.completedTrips is number && data.completedTrips >= 0 && data.completedTrips <= 100000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTruck(data) {
+      return data.keys().hasAll(['truckId', 'carrierId', 'carrierCompany', 'plateNumber', 'tractorModel', 'trailerType', 'maxPayloadTons', 'supportedContainerSizes', 'driverName', 'driverPhone', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['truckId', 'carrierId', 'carrierCompany', 'plateNumber', 'tractorModel', 'trailerType', 'maxPayloadTons', 'supportedContainerSizes', 'driverName', 'driverPhone', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.truckId)
+        && isValidId(data.carrierId)
+        && data.carrierCompany is string && data.carrierCompany.size() >= 2 && data.carrierCompany.size() <= 120
+        && data.plateNumber is string && data.plateNumber.size() >= 2 && data.plateNumber.size() <= 30
+        && data.tractorModel is string && data.tractorModel.size() >= 2 && data.tractorModel.size() <= 80
+        && data.trailerType in ['flatbed_20', 'flatbed_40', 'skeleton_40', 'reefer_chassis', 'lowbed']
+        && data.maxPayloadTons is number && data.maxPayloadTons >= 1 && data.maxPayloadTons <= 100
+        && data.supportedContainerSizes is list && data.supportedContainerSizes.size() >= 1 && data.supportedContainerSizes.size() <= 3 && data.supportedContainerSizes.hasOnly(['20ft', '40ft', '40ft_hc'])
+        && data.driverName is string && data.driverName.size() >= 2 && data.driverName.size() <= 80
+        && data.driverPhone is string && data.driverPhone.size() >= 5 && data.driverPhone.size() <= 30
+        && data.status in ['available', 'on_trip', 'maintenance']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidShipment(data) {
+      return data.keys().hasAll([
+          'shipmentId', 'referenceCode', 'shipperId', 'shipperCompany', 'port', 'direction',
+          'terminalGate', 'deliveryLocation', 'deliveryGovernorate', 'containerSize', 'containerType',
+          'containerCount', 'cargoWeightTons', 'cargoDescription', 'instructions', 'pickupDate',
+          'targetBudgetEgp', 'status', 'acceptedOfferId', 'acceptedCarrierId', 'acceptedCarrierCompany',
+          'agreedPriceEgp', 'shipperCommissionRate', 'carrierCommissionRate', 'shipperCommissionEgp',
+          'carrierCommissionEgp', 'totalShipperPayableEgp', 'netCarrierPayoutEgp', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'shipmentId', 'referenceCode', 'shipperId', 'shipperCompany', 'port', 'direction',
+          'terminalGate', 'deliveryLocation', 'deliveryGovernorate', 'containerSize', 'containerType',
+          'containerCount', 'cargoWeightTons', 'cargoDescription', 'instructions', 'pickupDate',
+          'targetBudgetEgp', 'status', 'acceptedOfferId', 'acceptedCarrierId', 'acceptedCarrierCompany',
+          'agreedPriceEgp', 'shipperCommissionRate', 'carrierCommissionRate', 'shipperCommissionEgp',
+          'carrierCommissionEgp', 'totalShipperPayableEgp', 'netCarrierPayoutEgp', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.shipmentId)
+        && data.referenceCode is string && data.referenceCode.size() >= 3 && data.referenceCode.size() <= 30
+        && isValidId(data.shipperId)
+        && data.shipperCompany is string && data.shipperCompany.size() >= 2 && data.shipperCompany.size() <= 120
+        && data.port in ['alexandria', 'dekheila']
+        && data.direction in ['from_port', 'to_port']
+        && data.terminalGate is string && data.terminalGate.size() <= 100
+        && data.deliveryLocation is string && data.deliveryLocation.size() >= 2 && data.deliveryLocation.size() <= 200
+        && data.deliveryGovernorate is string && data.deliveryGovernorate.size() >= 2 && data.deliveryGovernorate.size() <= 80
+        && data.containerSize in ['20ft', '40ft', '40ft_hc']
+        && data.containerType in ['dry', 'reefer', 'open_top', 'flat_rack', 'tank']
+        && data.containerCount is number && data.containerCount >= 1 && data.containerCount <= 50
+        && data.cargoWeightTons is number && data.cargoWeightTons >= 1 && data.cargoWeightTons <= 200
+        && data.cargoDescription is string && data.cargoDescription.size() >= 2 && data.cargoDescription.size() <= 500
+        && data.instructions is string && data.instructions.size() <= 1000
+        && data.pickupDate is string && data.pickupDate.size() >= 4 && data.pickupDate.size() <= 30
+        && data.targetBudgetEgp is number && data.targetBudgetEgp >= 0 && data.targetBudgetEgp <= 10000000
+        && data.status in ['open', 'assigned', 'in_transit', 'at_gate', 'delivered', 'completed', 'cancelled']
+        && data.acceptedOfferId is string && data.acceptedOfferId.size() <= 128
+        && data.acceptedCarrierId is string && data.acceptedCarrierId.size() <= 128
+        && data.acceptedCarrierCompany is string && data.acceptedCarrierCompany.size() <= 120
+        && data.agreedPriceEgp is number && data.agreedPriceEgp >= 0 && data.agreedPriceEgp <= 10000000
+        && data.shipperCommissionRate is number && data.shipperCommissionRate >= 0 && data.shipperCommissionRate <= 50
+        && data.carrierCommissionRate is number && data.carrierCommissionRate >= 0 && data.carrierCommissionRate <= 50
+        && data.shipperCommissionEgp is number && data.shipperCommissionEgp >= 0 && data.shipperCommissionEgp <= 10000000
+        && data.carrierCommissionEgp is number && data.carrierCommissionEgp >= 0 && data.carrierCommissionEgp <= 10000000
+        && data.totalShipperPayableEgp is number && data.totalShipperPayableEgp >= 0 && data.totalShipperPayableEgp <= 10000000
+        && data.netCarrierPayoutEgp is number && data.netCarrierPayoutEgp >= 0 && data.netCarrierPayoutEgp <= 10000000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidOffer(data) {
+      return data.keys().hasAll(['offerId', 'shipmentId', 'shipmentReference', 'shipperId', 'carrierId', 'carrierCompany', 'truckId', 'truckLabel', 'priceEgp', 'estimatedHours', 'notes', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['offerId', 'shipmentId', 'shipmentReference', 'shipperId', 'carrierId', 'carrierCompany', 'truckId', 'truckLabel', 'priceEgp', 'estimatedHours', 'notes', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.offerId)
+        && isValidId(data.shipmentId)
+        && data.shipmentReference is string && data.shipmentReference.size() >= 3 && data.shipmentReference.size() <= 40
+        && isValidId(data.shipperId)
+        && isValidId(data.carrierId)
+        && data.carrierCompany is string && data.carrierCompany.size() >= 2 && data.carrierCompany.size() <= 120
+        && isValidId(data.truckId)
+        && data.truckLabel is string && data.truckLabel.size() >= 2 && data.truckLabel.size() <= 120
+        && data.priceEgp is number && data.priceEgp >= 100 && data.priceEgp <= 10000000
+        && data.estimatedHours is number && data.estimatedHours >= 1 && data.estimatedHours <= 720
+        && data.notes is string && data.notes.size() <= 600
+        && data.status in ['pending', 'accepted', 'rejected', 'withdrawn']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCommission(data) {
+      return data.keys().hasAll(['commissionId', 'shipmentId', 'shipmentReference', 'offerId', 'shipperId', 'shipperCompany', 'carrierId', 'carrierCompany', 'agreedPriceEgp', 'shipperRatePercent', 'carrierRatePercent', 'shipperFeeEgp', 'carrierFeeEgp', 'totalPlatformFeeEgp', 'settlementStatus', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['commissionId', 'shipmentId', 'shipmentReference', 'offerId', 'shipperId', 'shipperCompany', 'carrierId', 'carrierCompany', 'agreedPriceEgp', 'shipperRatePercent', 'carrierRatePercent', 'shipperFeeEgp', 'carrierFeeEgp', 'totalPlatformFeeEgp', 'settlementStatus', 'createdAt', 'updatedAt'])
+        && isValidId(data.commissionId)
+        && isValidId(data.shipmentId)
+        && data.shipmentReference is string && data.shipmentReference.size() >= 3 && data.shipmentReference.size() <= 40
+        && isValidId(data.offerId)
+        && isValidId(data.shipperId)
+        && data.shipperCompany is string && data.shipperCompany.size() >= 2 && data.shipperCompany.size() <= 120
+        && isValidId(data.carrierId)
+        && data.carrierCompany is string && data.carrierCompany.size() >= 2 && data.carrierCompany.size() <= 120
+        && data.agreedPriceEgp is number && data.agreedPriceEgp >= 1 && data.agreedPriceEgp <= 10000000
+        && data.shipperRatePercent is number && data.shipperRatePercent >= 0 && data.shipperRatePercent <= 50
+        && data.carrierRatePercent is number && data.carrierRatePercent >= 0 && data.carrierRatePercent <= 50
+        && data.shipperFeeEgp is number && data.shipperFeeEgp >= 0 && data.shipperFeeEgp <= 10000000
+        && data.carrierFeeEgp is number && data.carrierFeeEgp >= 0 && data.carrierFeeEgp <= 10000000
+        && data.totalPlatformFeeEgp is number && data.totalPlatformFeeEgp >= 0 && data.totalPlatformFeeEgp <= 10000000
+        && data.settlementStatus in ['recorded_pending_gateway', 'settled', 'cancelled']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPlatformSetting(data) {
+      return data.keys().hasAll(['settingId', 'shipperCommissionPercent', 'carrierCommissionPercent', 'minOrderValueEgp', 'paymentCollectionMode', 'updatedBy', 'updatedAt'])
+        && data.keys().hasOnly(['settingId', 'shipperCommissionPercent', 'carrierCommissionPercent', 'minOrderValueEgp', 'paymentCollectionMode', 'updatedBy', 'updatedAt'])
+        && isValidId(data.settingId)
+        && data.shipperCommissionPercent is number && data.shipperCommissionPercent >= 0 && data.shipperCommissionPercent <= 30
+        && data.carrierCommissionPercent is number && data.carrierCommissionPercent >= 0 && data.carrierCommissionPercent <= 30
+        && data.minOrderValueEgp is number && data.minOrderValueEgp >= 0 && data.minOrderValueEgp <= 1000000
+        && data.paymentCollectionMode == 'manual_recording_no_gateway'
+        && data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidComplaint(data) {
+      return data.keys().hasAll(['complaintId', 'reporterId', 'reporterName', 'reporterRole', 'shipmentId', 'subject', 'details', 'status', 'adminNote', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['complaintId', 'reporterId', 'reporterName', 'reporterRole', 'shipmentId', 'subject', 'details', 'status', 'adminNote', 'createdAt', 'updatedAt'])
+        && isValidId(data.complaintId)
+        && isValidId(data.reporterId)
+        && data.reporterName is string && data.reporterName.size() >= 2 && data.reporterName.size() <= 100
+        && data.reporterRole in ['shipper', 'carrier']
+        && data.shipmentId is string && data.shipmentId.size() <= 128
+        && data.subject is string && data.subject.size() >= 3 && data.subject.size() <= 150
+        && data.details is string && data.details.size() >= 5 && data.details.size() <= 2000
+        && data.status in ['open', 'under_review', 'resolved', 'dismissed']
+        && data.adminNote is string && data.adminNote.size() <= 1000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidContactMessage(data) {
+      return data.keys().hasAll(['messageId', 'senderId', 'senderName', 'email', 'phone', 'subject', 'message', 'status', 'createdAt'])
+        && data.keys().hasOnly(['messageId', 'senderId', 'senderName', 'email', 'phone', 'subject', 'message', 'status', 'createdAt'])
+        && isValidId(data.messageId)
+        && data.senderId is string && data.senderId.size() <= 128
+        && data.senderName is string && data.senderName.size() >= 2 && data.senderName.size() <= 100
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
+        && data.phone is string && data.phone.size() >= 5 && data.phone.size() <= 30
+        && data.subject is string && data.subject.size() >= 2 && data.subject.size() <= 150
+        && data.message is string && data.message.size() >= 5 && data.message.size() <= 2000
+        && data.status in ['new', 'reviewed']
+        && data.createdAt is timestamp;
+    }
+
+    // =========================================================
+    // Collection Rules
+    // =========================================================
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isVerifiedEmail()
+        && isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().accountStatus == 'active'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedEmail()
+        && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(userId)
+            && incoming().role == existing().role
+            && incoming().accountStatus == existing().accountStatus
+            && incoming().email == existing().email
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'phone', 'companyName', 'commercialRegister', 'city', 'updatedAt'])
+          )
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /admins/{userId} {
+      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidId(userId) && isValidAdminRecord(incoming()) && incoming().uid == userId && incoming().createdAt == request.time;
+      allow update: if isAdmin() && isValidId(userId) && isValidAdminRecord(incoming()) && incoming().uid == existing().uid && incoming().createdAt == existing().createdAt;
+      allow delete: if isAdmin();
+    }
+
+    match /carrierProfiles/{carrierId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin() || (isSignedIn() && (existing().verificationStatus == 'approved' || existing().carrierId == request.auth.uid));
+      allow create: if isVerifiedEmail()
+        && isValidId(carrierId)
+        && isOwner(carrierId)
+        && isValidCarrierProfile(incoming())
+        && incoming().carrierId == request.auth.uid
+        && incoming().verificationStatus == 'pending'
+        && incoming().completedTrips == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedEmail()
+        && isValidId(carrierId)
+        && isValidCarrierProfile(incoming())
+        && incoming().carrierId == existing().carrierId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(carrierId)
+            && incoming().verificationStatus == existing().verificationStatus
+            && incoming().completedTrips == existing().completedTrips
+            && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'ownerName', 'city', 'servicePorts', 'yearsExperience', 'description', 'truckCount', 'updatedAt'])
+          )
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /trucks/{truckId} {
+      allow get: if isSignedIn() && (existing().carrierId == request.auth.uid || isAdmin());
+      allow list: if isAdmin() || (isSignedIn() && existing().carrierId == request.auth.uid);
+      allow create: if isVerifiedEmail()
+        && isValidId(truckId)
+        && isValidTruck(incoming())
+        && incoming().truckId == truckId
+        && incoming().carrierId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedEmail()
+        && isValidId(truckId)
+        && isValidTruck(incoming())
+        && incoming().truckId == existing().truckId
+        && incoming().carrierId == existing().carrierId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().carrierId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['carrierCompany', 'plateNumber', 'tractorModel', 'trailerType', 'maxPayloadTons', 'supportedContainerSizes', 'driverName', 'driverPhone', 'status', 'updatedAt'])
+          )
+        );
+      allow delete: if isVerifiedEmail() && isValidId(truckId) && (existing().carrierId == request.auth.uid || isAdmin());
+    }
+
+    match /shipments/{shipmentId} {
+      allow get: if isAdmin() || (isSignedIn() && (existing().shipperId == request.auth.uid || existing().acceptedCarrierId == request.auth.uid || existing().status == 'open'));
+      allow list: if isAdmin() || (isSignedIn() && (existing().shipperId == request.auth.uid || existing().acceptedCarrierId == request.auth.uid || existing().status == 'open'));
+      allow create: if isVerifiedEmail()
+        && isValidId(shipmentId)
+        && isValidShipment(incoming())
+        && incoming().shipmentId == shipmentId
+        && incoming().shipperId == request.auth.uid
+        && incoming().status == 'open'
+        && incoming().acceptedOfferId == ''
+        && incoming().acceptedCarrierId == ''
+        && incoming().acceptedCarrierCompany == ''
+        && incoming().agreedPriceEgp == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isActiveUserAccount();
+      allow update: if isVerifiedEmail()
+        && isValidId(shipmentId)
+        && isValidShipment(incoming())
+        && incoming().shipmentId == existing().shipmentId
+        && incoming().shipperId == existing().shipperId
+        && incoming().referenceCode == existing().referenceCode
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            !(existing().status in ['completed', 'cancelled']) && (
+              // Action 1: Shipper cancels or edits open shipment
+              (
+                existing().shipperId == request.auth.uid
+                && existing().status == 'open'
+                && incoming().status in ['open', 'cancelled']
+                && incoming().diff(existing()).affectedKeys().hasOnly(['deliveryLocation', 'deliveryGovernorate', 'terminalGate', 'instructions', 'pickupDate', 'targetBudgetEgp', 'status', 'updatedAt'])
+              ) ||
+              // Action 2: Shipper accepts an offer and assigns carrier
+              (
+                existing().shipperId == request.auth.uid
+                && existing().status == 'open'
+                && incoming().status == 'assigned'
+                && isValidId(incoming().acceptedOfferId)
+                && isValidId(incoming().acceptedCarrierId)
+                && existsAfter(/databases/$(database)/documents/offers/$(incoming().acceptedOfferId))
+                && incoming().diff(existing()).affectedKeys().hasOnly([
+                  'status', 'acceptedOfferId', 'acceptedCarrierId', 'acceptedCarrierCompany',
+                  'agreedPriceEgp', 'shipperCommissionRate', 'carrierCommissionRate',
+                  'shipperCommissionEgp', 'carrierCommissionEgp', 'totalShipperPayableEgp',
+                  'netCarrierPayoutEgp', 'updatedAt'
+                ])
+              ) ||
+              // Action 3: Assigned carrier advances execution status
+              (
+                existing().acceptedCarrierId == request.auth.uid
+                && existing().status in ['assigned', 'in_transit', 'at_gate']
+                && incoming().status in ['in_transit', 'at_gate', 'delivered']
+                && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+              ) ||
+              // Action 4: Shipper confirms final completion after delivery
+              (
+                existing().shipperId == request.auth.uid
+                && existing().status == 'delivered'
+                && incoming().status == 'completed'
+                && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+              )
+            )
+          )
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /offers/{offerId} {
+      allow get: if isAdmin() || (isSignedIn() && (existing().carrierId == request.auth.uid || existing().shipperId == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && (existing().carrierId == request.auth.uid || existing().shipperId == request.auth.uid));
+      allow create: if isVerifiedEmail()
+        && isValidId(offerId)
+        && isValidOffer(incoming())
+        && incoming().offerId == offerId
+        && incoming().carrierId == request.auth.uid
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isActiveUserAccount()
+        && exists(/databases/$(database)/documents/shipments/$(incoming().shipmentId))
+        && get(/databases/$(database)/documents/shipments/$(incoming().shipmentId)).data.status == 'open'
+        && get(/databases/$(database)/documents/shipments/$(incoming().shipmentId)).data.shipperId == incoming().shipperId;
+      allow update: if isVerifiedEmail()
+        && isValidId(offerId)
+        && isValidOffer(incoming())
+        && incoming().offerId == existing().offerId
+        && incoming().shipmentId == existing().shipmentId
+        && incoming().shipperId == existing().shipperId
+        && incoming().carrierId == existing().carrierId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().status == 'pending' && (
+              // Action 1: Shipper accepts or rejects
+              (
+                existing().shipperId == request.auth.uid
+                && incoming().status in ['accepted', 'rejected']
+                && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+              ) ||
+              // Action 2: Carrier withdraws offer
+              (
+                existing().carrierId == request.auth.uid
+                && incoming().status == 'withdrawn'
+                && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+              )
+            )
+          )
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /commissions/{commissionId} {
+      allow get: if isAdmin() || (isSignedIn() && (existing().shipperId == request.auth.uid || existing().carrierId == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && (existing().shipperId == request.auth.uid || existing().carrierId == request.auth.uid));
+      allow create: if isVerifiedEmail()
+        && isValidId(commissionId)
+        && isValidCommission(incoming())
+        && incoming().commissionId == commissionId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            incoming().shipperId == request.auth.uid
+            && incoming().settlementStatus == 'recorded_pending_gateway'
+            && existsAfter(/databases/$(database)/documents/shipments/$(incoming().shipmentId))
+          )
+        );
+      allow update: if isAdmin() && isValidId(commissionId) && isValidCommission(incoming()) && incoming().commissionId == existing().commissionId && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isAdmin();
+    }
+
+    match /platformSettings/{settingId} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidId(settingId) && isValidPlatformSetting(incoming()) && incoming().settingId == settingId && incoming().updatedAt == request.time;
+      allow update: if isAdmin() && isValidId(settingId) && isValidPlatformSetting(incoming()) && incoming().settingId == existing().settingId && incoming().updatedAt == request.time;
+      allow delete: if isAdmin();
+    }
+
+    match /complaints/{complaintId} {
+      allow get: if isAdmin() || (isSignedIn() && existing().reporterId == request.auth.uid);
+      allow list: if isAdmin() || (isSignedIn() && existing().reporterId == request.auth.uid);
+      allow create: if isVerifiedEmail()
+        && isValidId(complaintId)
+        && isValidComplaint(incoming())
+        && incoming().complaintId == complaintId
+        && incoming().reporterId == request.auth.uid
+        && incoming().status == 'open'
+        && incoming().adminNote == ''
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isAdmin()
+        && isValidId(complaintId)
+        && isValidComplaint(incoming())
+        && incoming().complaintId == existing().complaintId
+        && incoming().reporterId == existing().reporterId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isAdmin();
+    }
+
+    match /contactMessages/{messageId} {
+      allow get, list, update, delete: if isAdmin();
+      allow create: if isVerifiedEmail()
+        && isValidId(messageId)
+        && isValidContactMessage(incoming())
+        && incoming().messageId == messageId
+        && incoming().senderId == request.auth.uid
+        && incoming().status == 'new'
+        && incoming().createdAt == request.time;
+    }
+  }
+}
